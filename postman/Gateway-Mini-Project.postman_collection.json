@@ -1,0 +1,392 @@
+{
+  "info": {
+    "name": "Gateway Mini Project",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "gateway",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "userId",
+      "value": "123"
+    },
+    {
+      "key": "jwtSecret",
+      "value": "mysecret"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "avatarUrl",
+      "value": ""
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const b64u = s => CryptoJS.enc.Base64.stringify(s).replace(/=+$/,'').replace(/\\+/g,'-').replace(/\\//g,'_');",
+          "const enc = o => b64u(CryptoJS.enc.Utf8.parse(JSON.stringify(o)));",
+          "const now = Math.floor(Date.now()/1000);",
+          "const exp = pm.collectionVariables.get('tokenTtl') ? +pm.collectionVariables.get('tokenTtl') : 3600;",
+          "const data = enc({alg:'HS256',typ:'JWT'}) + '.' + enc({sub: pm.collectionVariables.get('userId'), name:'Test User', iat: now, exp: now+exp});",
+          "const sig = b64u(CryptoJS.HmacSHA256(data, pm.collectionVariables.get('jwtSecret')));",
+          "pm.collectionVariables.set('token', data + '.' + sig);"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Routing",
+      "item": [
+        {
+          "name": "GET /users/:id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 từ User Service\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"id = 123\", () => pm.expect(pm.response.json().id).to.eql(\"123\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/users/123",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "users",
+                "123"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /orders/:id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 từ Order Service\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"là mảng order\", () => pm.expect(pm.response.json()).to.be.an(\"array\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/orders/123",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "orders",
+                "123"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /unknown (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway}}/abc",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "abc"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. JWT tại Gateway",
+      "item": [
+        {
+          "name": "Không có token -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"401\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway}}/users/123",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "users",
+                "123"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Token sai chữ ký -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"401\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjMifQ.invalidsignature"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/users/123",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "users",
+                "123"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Xem user khác -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/users/999",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "users",
+                "999"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Aggregation",
+      "item": [
+        {
+          "name": "GET /dashboard",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test(\"có user + orders\", () => { pm.expect(j).to.have.keys(\"user\",\"orders\"); });",
+                  "pm.test(\"orders thuộc đúng user trong token\", () => j.orders.forEach(o => pm.expect(o.userId).to.eql(\"123\")));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/dashboard",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "dashboard"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Valet Key (MinIO)",
+      "item": [
+        {
+          "name": "B1: GET avatar-url",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test(\"URL hết hạn 300s (5 phút)\", () => pm.expect(new URL(j.url).searchParams.get(\"X-Amz-Expires\")).to.eql(\"300\"));",
+                  "pm.collectionVariables.set(\"avatarUrl\", j.url);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/users/123/avatar-url",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "users",
+                "123",
+                "avatar-url"
+              ]
+            }
+          }
+        },
+        {
+          "name": "B2: PUT ảnh lên MinIO (không qua gateway, KHÔNG token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"MinIO trả 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "file",
+              "file": {}
+            },
+            "url": {
+              "raw": "{{avatarUrl}}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Rate limit (dùng Collection Runner)",
+      "item": [
+        {
+          "name": "Spam /users/123 (Run 30 lần, delay 0ms)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 hoặc 429\", () => pm.expect([200,429]).to.include(pm.response.code));",
+                  "console.log(pm.response.code);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway}}/users/123",
+              "host": [
+                "{{gateway}}"
+              ],
+              "path": [
+                "users",
+                "123"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

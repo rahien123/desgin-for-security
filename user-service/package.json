@@ -1,0 +1,2 @@
+{ "name": "user-service", "version": "1.0.0", "main": "server.js",
+  "dependencies": { "express": "^4.18.2", "aws-sdk": "^2.1470.0" } }
