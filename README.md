@@ -1,4 +1,4 @@
-# Mini Project: User + Order service sau API Gateway (nginx chuẩn, KHÔNG dùng Lua)
+# Mini Project: User + Order service sau API Gateway 
 
 Chạy: `docker compose up --build`
 - Gateway: http://localhost:8080 | MinIO console: http://localhost:9001 (minioadmin/minioadmin)
